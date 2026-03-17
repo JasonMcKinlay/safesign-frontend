@@ -1,71 +1,73 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 export default function Home() {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [isCameraOn, setIsCameraOn] = useState(false);
-  const [translation, setTranslation] = useState('');
+  const [cameraError, setCameraError] = useState('');
 
-  const startCamera = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user' }, // Front camera for ASL
-        audio: false,
-      });
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        setIsCameraOn(true);
+  useEffect(() => {
+    let mounted = true;
+    const startCamera = async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'user' },
+          audio: false,
+        });
+        if (mounted && videoRef.current) {
+          videoRef.current.srcObject = stream;
+        }
+      } catch (error) {
+        console.error('Error accessing camera:', error);
+        setCameraError('Unable to access camera. Please check permissions.');
       }
-    } catch (error) {
-      console.error('Error accessing camera:', error);
-      alert('Unable to access camera. Please check permissions.');
-    }
-  };
+    };
 
-  const stopCamera = () => {
-    if (videoRef.current && videoRef.current.srcObject) {
-      const stream = videoRef.current.srcObject as MediaStream;
-      stream.getTracks().forEach(track => track.stop());
-      videoRef.current.srcObject = null;
-      setIsCameraOn(false);
-    }
-  };
- 
+    startCamera();
+
+    return () => {
+      mounted = false;
+      if (videoRef.current && videoRef.current.srcObject) {
+        const stream = videoRef.current.srcObject as MediaStream;
+        stream.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, []);
+
   return (
-    <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center p-4">
-      <div className="w-full max-w-md bg-white rounded-lg shadow-lg p-4">
-        <div className="relative aspect-video bg-black rounded-lg overflow-hidden mb-4">
-          <video
-            ref={videoRef}
-            autoPlay
-            playsInline
-            muted
-            className="w-full h-full object-cover"
-          />
-          {!isCameraOn && (
-            <div className="absolute inset-0 flex items-center justify-center text-white">
-              <span>Camera Off</span>
-            </div>
-          )}
-        </div>
+    <div className="min-h-screen bg-slate-950 text-white">
+      <div className="relative h-screen w-full overflow-hidden">
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          muted
+          className="absolute inset-0 h-full w-full object-cover scale-x-[-1]"
+        />
 
-        <div className="flex gap-2 mb-4">
-          {!isCameraOn ? (
-            <button
-              onClick={startCamera}
-              className="flex-1 bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600 transition-colors"
-            >
-              Start Camera
-            </button>
-          ) : (
-            <button
-              onClick={stopCamera}
-              className="flex-1 bg-red-500 text-white py-2 px-4 rounded-lg hover:bg-red-600 transition-colors"
-            >
-              Stop Camera
-            </button>
-          )}
+        <div className="absolute inset-0 bg-gradient-to-b from-black/35 via-black/15 to-black/75" />
+
+        <header className="absolute top-0 left-0 right-0 p-4 flex items-center justify-between">
+          <div>
+            <p className="text-xs uppercase tracking-[0.2em] text-slate-200">SafeSign Beta</p>
+            <h1 className="text-xl font-bold">Live ASL Translator</h1>
+          </div>
+          <div className="rounded-full border border-white/30 bg-white/10 px-3 py-1 text-xs">Live</div>
+        </header>
+
+        {cameraError ? (
+          <div className="absolute inset-0 flex items-center justify-center p-4 text-center text-red-300">
+            <div className="rounded-xl bg-black/60 px-4 py-3">{cameraError}</div>
+          </div>
+        ) : null}
+
+        <div className="absolute bottom-0 left-0 right-0 p-4">
+          <div className="mb-2 text-center text-sm text-slate-200/90">Point your camera at ASL gestures to begin translation.</div>
+          <div className="grid grid-cols-3 gap-2">
+            <button className="rounded-xl bg-white/20 px-3 py-2 text-sm font-semibold text-white hover:bg-white/30">Translate</button>
+            <button className="rounded-xl bg-white/20 px-3 py-2 text-sm font-semibold text-white hover:bg-white/30">History</button>
+            <button className="rounded-xl bg-white/20 px-3 py-2 text-sm font-semibold text-white hover:bg-white/30">Settings</button>
+          </div>
         </div>
       </div>
     </div>
