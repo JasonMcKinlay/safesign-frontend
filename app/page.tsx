@@ -73,8 +73,8 @@ export default function Home() {
   }, [facingMode]);
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white">
-      <div className="relative h-screen w-full overflow-hidden">
+    <div className="min-h-screen overflow-hidden bg-slate-950 text-white">
+      <div className="relative h-screen w-full overflow-hidden touch-none">
         <video
           ref={videoRef}
           autoPlay
@@ -83,12 +83,12 @@ export default function Home() {
           className={`absolute inset-0 h-full w-full object-cover ${facingMode === 'user' ? 'scale-x-[-1]' : ''}`}
         />
 
-        <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/15 to-black/100" />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/5 to-black/75" />
 
         <header className="absolute top-0 left-0 right-0 p-4 flex items-center justify-between">
-          <div>
-            <p className="text-xs uppercase tracking-[0.2em] text-slate-200">SafeSign Beta</p>
-            <h1 className="text-xl font-bold">Live ASL Translator</h1>
+          <div className="flex items-center space-x-4">
+            <img src="/safesign-logo.png" alt="SafeSign Logo" className="h-8 mb-1 pl-2" />
+            <p className="text-sm uppercase tracking-[0.2em] text-slate-200">SafeSign</p>
           </div>
           <button
             onClick={() => {
@@ -178,11 +178,19 @@ export default function Home() {
           >
             <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16" />
             {showChatLog ? (
-              <div className="space-y-2 text-left text-sm leading-5 text-slate-100 px-4 py-3">
+              <div className="text-left text-sm text-slate-100 px-4 py-3" style={{ lineHeight: 1.35 + textSize / 40 }}>
                 {translationHistory.map((msg, idx) => {
                   const parsed = splitSpeaker(msg);
                   return (
-                    <div key={idx} className="text-slate-100" style={{ fontSize: `${textSize}px` }}>
+                    <div
+                      key={idx}
+                      className="text-slate-100"
+                      style={{
+                        fontSize: `${textSize}px`,
+                        marginBottom: `${Math.round(textSize * 1)}px`,
+                        lineHeight: 1 + textSize / 40,
+                      }}
+                    >
                       <span className="font-semibold text-white">{parsed.speaker}:</span>{' '}
                       <span>{parsed.text}</span>
                     </div>
@@ -190,7 +198,7 @@ export default function Home() {
                 })}
               </div>
             ) : (
-              <div className="flex h-full items-center justify-center text-white/90" style={{ fontSize: `${textSize}px` }}>
+              <div className="flex h-full items-center justify-center text-white/90" style={{ fontSize: `${textSize}px`, lineHeight: 1.35 + textSize / 40 }}>
                 {(() => {
                   const parsed = splitSpeaker(latestMessage);
                   return (
