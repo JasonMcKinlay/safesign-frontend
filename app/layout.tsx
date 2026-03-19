@@ -16,6 +16,14 @@ export const metadata: Metadata = {
   title: "SafeSign",
   description: "Mobile ASL translation app",
   manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "SafeSign",
+  },
+  icons: {
+    apple: "/icon-512x512.png",
+  },
 };
 
 export default function RootLayout({
