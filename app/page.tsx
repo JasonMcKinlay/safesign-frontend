@@ -79,65 +79,75 @@ export default function Home() {
     let active = true;
     let requestId = 0;
     let hands: any = null;
+    let pose: any = null;
+    let holistic: any = null;
 
     const initMediaPipe = async () => {
-      // Dynamically import so it only runs in the browser
-      const HandsClass = (window as any).Hands;
+      // const HandsClass = (window as any).Hands;
+      // const PoseClass = (window as any).Pose;
       const HAND_CONNECTIONS = (window as any).HAND_CONNECTIONS;
       const drawConnectorsFn = (window as any).drawConnectors;
       const drawLandmarksFn = (window as any).drawLandmarks;
 
-      if (!HandsClass) {
-        console.error('Waiting for MediaPipe scripts to load...');
-        return;
-      }
+      // if (!HandsClass) {
+      //   console.error('Waiting for MediaPipe scripts to load...');
+      //   return;
+      // }
 
-      hands = new HandsClass({
-        locateFile: (file: string) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1646424915/${file}`,
+      const HolisticClass = (window as any).Holistic;
+      
+
+      // Inside your initMediaPipe function:
+      holistic = new HolisticClass({
+        locateFile: (file: string) => `https://cdn.jsdelivr.net/npm/@mediapipe/holistic/${file}`,
       });
 
-      const drawResults = (results: any) => {
-        const canvas = canvasRef.current;
-        const video = videoRef.current;
-        if (!canvas || !video) return;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
-
-        const width = video.videoWidth || video.clientWidth;
-        const height = video.videoHeight || video.clientHeight;
-        canvas.width = width;
-        canvas.height = height;
-        ctx.clearRect(0, 0, width, height);
-
-        ctx.save();
-        if (facingMode === 'user') {
-          ctx.translate(width, 0);
-          ctx.scale(-1, 1);
-        }
-
-        if (results.multiHandLandmarks) {
-          for (const landmarks of results.multiHandLandmarks) {
-            if (drawConnectorsFn) {
-              drawConnectorsFn(ctx, landmarks, HAND_CONNECTIONS, { color: '#7dd3fc', lineWidth: 3 });
-            }
-            if (drawLandmarksFn) {
-              drawLandmarksFn(ctx, landmarks, { color: '#f8fafc', lineWidth: 2, radius: 4 });
-            }
-          }
-        }
-        ctx.restore();
-      };
-
-      hands.setOptions({
-        maxNumHands: 2,
+      holistic.setOptions({
+        selfieMode: facingMode === 'user',
         modelComplexity: 1,
-        minDetectionConfidence: 0.65,
+        minDetectionConfidence: 0.5,
         minTrackingConfidence: 0.5,
       });
 
-      hands.onResults((result: any) => {
-        if (!active) return;
-        drawResults(result);
+      holistic.onResults((results: any) => {
+        const canvasCtx = canvasRef.current?.getContext('2d');
+        const canvasEl = canvasRef.current;
+        const videoEl = videoRef.current; // Grab the video element
+
+        if (!canvasCtx || !canvasEl || !videoEl) return;
+
+        // Sync the canvas resolution to the HD video feed
+        canvasEl.width = videoEl.videoWidth;
+        canvasEl.height = videoEl.videoHeight;
+
+        canvasCtx.save();
+        canvasCtx.clearRect(0, 0, canvasEl.width, canvasEl.height);
+
+        // Draw Hands
+        const handsToDraw = [results.leftHandLandmarks, results.rightHandLandmarks];
+        handsToDraw.forEach(hand => {
+          if (hand) {
+            if (drawConnectorsFn) drawConnectorsFn(canvasCtx, hand, HAND_CONNECTIONS, { color: '#7dd3fc', lineWidth: 3 });
+            if (drawLandmarksFn) drawLandmarksFn(canvasCtx, hand, { color: '#f8fafc', lineWidth: 2, radius: 4 });
+          }
+        });
+
+        // Draw 6 Pose Points (Shoulders, Elbows, Wrists)
+        if (results.poseLandmarks) {
+          [11, 12, 13, 14, 15, 16].forEach(index => {
+            const landmark = results.poseLandmarks[index];
+            if (landmark && landmark.visibility > 0.5) {
+              canvasCtx.beginPath();
+              canvasCtx.arc(landmark.x * canvasEl.width, landmark.y * canvasEl.height, 6, 0, 2 * Math.PI);
+              canvasCtx.fillStyle = '#FFA500';
+              canvasCtx.fill();
+              canvasCtx.lineWidth = 2;
+              canvasCtx.strokeStyle = '#FFFFFF';
+              canvasCtx.stroke();
+            }
+          });
+        }
+        canvasCtx.restore();
       });
 
       const processFrame = async () => {
@@ -148,7 +158,7 @@ export default function Home() {
           return;
         }
         try {
-          await hands.send({ image: video });
+          await holistic.send({ image: video })
         } catch (error) {
           console.error('Mediapipe processing error:', error);
         }
@@ -163,7 +173,8 @@ export default function Home() {
     return () => {
       active = false;
       if (requestId) cancelAnimationFrame(requestId);
-      if (hands) hands.close();
+      if (holistic) holistic.close();
+      //if (pose) pose.close();
     };
   }, [facingMode]);
 
