@@ -1,9 +1,12 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+// import mpHands from '@mediapipe/hands';
+// import mpDrawing from '@mediapipe/drawing_utils';
 
 export default function Home() {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const [cameraError, setCameraError] = useState('');
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
   const [showChatLog, setShowChatLog] = useState(false);
@@ -72,6 +75,98 @@ export default function Home() {
     };
   }, [facingMode]);
 
+  useEffect(() => {
+    let active = true;
+    let requestId = 0;
+    let hands: any = null;
+
+    const initMediaPipe = async () => {
+      // Dynamically import so it only runs in the browser
+      const HandsClass = (window as any).Hands;
+      const HAND_CONNECTIONS = (window as any).HAND_CONNECTIONS;
+      const drawConnectorsFn = (window as any).drawConnectors;
+      const drawLandmarksFn = (window as any).drawLandmarks;
+
+      if (!HandsClass) {
+        console.error('Waiting for MediaPipe scripts to load...');
+        return;
+      }
+
+      hands = new HandsClass({
+        locateFile: (file: string) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1646424915/${file}`,
+      });
+
+      const drawResults = (results: any) => {
+        const canvas = canvasRef.current;
+        const video = videoRef.current;
+        if (!canvas || !video) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        const width = video.videoWidth || video.clientWidth;
+        const height = video.videoHeight || video.clientHeight;
+        canvas.width = width;
+        canvas.height = height;
+        ctx.clearRect(0, 0, width, height);
+
+        ctx.save();
+        if (facingMode === 'user') {
+          ctx.translate(width, 0);
+          ctx.scale(-1, 1);
+        }
+
+        if (results.multiHandLandmarks) {
+          for (const landmarks of results.multiHandLandmarks) {
+            if (drawConnectorsFn) {
+              drawConnectorsFn(ctx, landmarks, HAND_CONNECTIONS, { color: '#7dd3fc', lineWidth: 3 });
+            }
+            if (drawLandmarksFn) {
+              drawLandmarksFn(ctx, landmarks, { color: '#f8fafc', lineWidth: 2, radius: 4 });
+            }
+          }
+        }
+        ctx.restore();
+      };
+
+      hands.setOptions({
+        maxNumHands: 2,
+        modelComplexity: 1,
+        minDetectionConfidence: 0.65,
+        minTrackingConfidence: 0.5,
+      });
+
+      hands.onResults((result: any) => {
+        if (!active) return;
+        drawResults(result);
+      });
+
+      const processFrame = async () => {
+        if (!active || !videoRef.current) return;
+        const video = videoRef.current;
+        if (video.readyState < 2 || !video.videoWidth || !video.videoHeight) {
+          requestId = requestAnimationFrame(processFrame);
+          return;
+        }
+        try {
+          await hands.send({ image: video });
+        } catch (error) {
+          console.error('Mediapipe processing error:', error);
+        }
+        requestId = requestAnimationFrame(processFrame);
+      };
+
+      processFrame();
+    };
+
+    initMediaPipe();
+
+    return () => {
+      active = false;
+      if (requestId) cancelAnimationFrame(requestId);
+      if (hands) hands.close();
+    };
+  }, [facingMode]);
+
   return (
     <div className="min-h-screen overflow-hidden bg-slate-950 text-white">
       <div className="relative h-screen w-full overflow-hidden touch-none">
@@ -82,8 +177,12 @@ export default function Home() {
           muted
           className={`absolute inset-0 h-full w-full object-cover ${facingMode === 'user' ? 'scale-x-[-1]' : ''}`}
         />
+        <canvas
+          ref={canvasRef}
+          className="absolute inset-0 h-full w-full object-cover pointer-events-none"
+        />
 
-        <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/5 to-black/75" />
+        <div className="absolute inset-0 bg-linear-to-b from-black/50 via-black/5 to-black/75" />
 
         <header className="absolute top-0 left-0 right-0 p-4 flex items-center justify-between">
           <div className="flex items-center space-x-4">
