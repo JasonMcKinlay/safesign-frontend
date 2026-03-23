@@ -133,21 +133,21 @@ export default function Home() {
         });
 
         // Draw 6 Pose Points (Shoulders, Elbows, Wrists)
-        if (results.poseLandmarks) {
-          [11, 12, 13, 14, 15, 16].forEach(index => {
-            const landmark = results.poseLandmarks[index];
-            if (landmark && landmark.visibility > 0.5) {
-              canvasCtx.beginPath();
-              canvasCtx.arc(landmark.x * canvasEl.width, landmark.y * canvasEl.height, 6, 0, 2 * Math.PI);
-              canvasCtx.fillStyle = '#FFA500';
-              canvasCtx.fill();
-              canvasCtx.lineWidth = 2;
-              canvasCtx.strokeStyle = '#FFFFFF';
-              canvasCtx.stroke();
-            }
-          });
-        }
-        canvasCtx.restore();
+        // if (results.poseLandmarks) {
+        //   [11, 12, 13, 14, 15, 16].forEach(index => {
+        //     const landmark = results.poseLandmarks[index];
+        //     if (landmark && landmark.visibility > 0.5) {
+        //       canvasCtx.beginPath();
+        //       canvasCtx.arc(landmark.x * canvasEl.width, landmark.y * canvasEl.height, 6, 0, 2 * Math.PI);
+        //       canvasCtx.fillStyle = '#FFA500';
+        //       canvasCtx.fill();
+        //       canvasCtx.lineWidth = 2;
+        //       canvasCtx.strokeStyle = '#FFFFFF';
+        //       canvasCtx.stroke();
+        //     }
+        //   });
+        // }
+        // canvasCtx.restore();
       });
 
       const processFrame = async () => {
