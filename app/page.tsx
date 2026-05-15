@@ -1,28 +1,44 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import * as tf from '@tensorflow/tfjs';
 // import mpHands from '@mediapipe/hands';
 // import mpDrawing from '@mediapipe/drawing_utils';
+
+// The words your model knows. (Ask your boy for the exact order of this list!)
+const ASL_VOCAB_ARRAY = ['hello', 'thanks', 'emergency', 'help', 'police'];
+
+// This flattens the MediaPipe results into the 165 numbers the model expects.
+// (You need to ask your boy exactly which 165 points he used to train the model so they match!)
+const extract165Landmarks = (results: any) => {
+  // Placeholder logic - usually it's 21 left hand points * 3 (x,y,z) + 21 right hand * 3 + upper body pose
+  let flatArray: number[] = [];
+  // ... extraction logic goes here ...
+  return flatArray; 
+};
 
 export default function Home() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const modelRef = useRef<tf.GraphModel | tf.LayersModel | null>(null);
+  const frameBuffer = useRef<number[][]>([]);
   const [cameraError, setCameraError] = useState('');
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
   const [showChatLog, setShowChatLog] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [textSize, setTextSize] = useState(14);
-  const [translationHistory, setTranslationHistory] = useState<string[]>([
-    'Voice: What is the emergency?',
-    'ASL: Hi officer, I am deaf by the way. There has been a car accident on 5th and Main.',
-    'Voice: Are there any injuries?',
-    'ASL: Yes, there are two people injured and they need medical assistance.',
-    'Voice: Ok, help is on the way. Can you tell me more about the accident?',
-    'ASL: It looks like a red sedan ran a red light and hit a blue SUV. The sedan is smoking and the driver is unconscious.',
-    'Voice: Thank you for the information. Stay here until help arrives.',
-    'ASL: Will do, thank you officer.',
-  ]);
+  // const [translationHistory, setTranslationHistory] = useState<string[]>([
+  //   'Voice: What is the emergency?',
+  //   'ASL: Hi officer, I am deaf by the way. There has been a car accident on 5th and Main.',
+  //   'Voice: Are there any injuries?',
+  //   'ASL: Yes, there are two people injured and they need medical assistance.',
+  //   'Voice: Ok, help is on the way. Can you tell me more about the accident?',
+  //   'ASL: It looks like a red sedan ran a red light and hit a blue SUV. The sedan is smoking and the driver is unconscious.',
+  //   'Voice: Thank you for the information. Stay here until help arrives.',
+  //   'ASL: Will do, thank you officer.',
+  // ]);
+  const [translationHistory, setTranslationHistory] = useState<string[]>([]);
   const latestMessage = translationHistory[translationHistory.length - 1] || 'ASL: No translation yet.';
   const splitSpeaker = (message: string) => {
     const [speaker, ...rest] = message.split(':');
@@ -39,6 +55,19 @@ export default function Home() {
     window.speechSynthesis.cancel();
     window.speechSynthesis.speak(utterance);
   };
+
+  useEffect(() => {
+    const loadModel = async () => {
+      try {
+        // Use loadGraphModel if converted from saved_model, loadLayersModel if from keras
+        modelRef.current = await tf.loadGraphModel('/tfjs_model/model.json');
+        console.log("Model loaded, ready to cook.");
+      } catch (err) {
+        console.error("Failed to load model:", err);
+      }
+    };
+    loadModel();
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -133,21 +162,50 @@ export default function Home() {
         });
 
         // Draw 6 Pose Points (Shoulders, Elbows, Wrists)
-        // if (results.poseLandmarks) {
-        //   [11, 12, 13, 14, 15, 16].forEach(index => {
-        //     const landmark = results.poseLandmarks[index];
-        //     if (landmark && landmark.visibility > 0.5) {
-        //       canvasCtx.beginPath();
-        //       canvasCtx.arc(landmark.x * canvasEl.width, landmark.y * canvasEl.height, 6, 0, 2 * Math.PI);
-        //       canvasCtx.fillStyle = '#FFA500';
-        //       canvasCtx.fill();
-        //       canvasCtx.lineWidth = 2;
-        //       canvasCtx.strokeStyle = '#FFFFFF';
-        //       canvasCtx.stroke();
-        //     }
-        //   });
-        // }
-        // canvasCtx.restore();
+        if (results.poseLandmarks) {
+          [11, 12, 13, 14, 15, 16].forEach(index => {
+            const landmark = results.poseLandmarks[index];
+            if (landmark && landmark.visibility > 0.5) {
+              canvasCtx.beginPath();
+              canvasCtx.arc(landmark.x * canvasEl.width, landmark.y * canvasEl.height, 6, 0, 2 * Math.PI);
+              canvasCtx.fillStyle = '#FFA500';
+              canvasCtx.fill();
+              canvasCtx.lineWidth = 2;
+              canvasCtx.strokeStyle = '#FFFFFF';
+              canvasCtx.stroke();
+            }
+          });
+        }
+
+        if (modelRef.current) {
+          // 1. You need a helper function to turn the results object into a flat array of 165 numbers
+          // (Make sure this matches exactly how your boy formatted the training data)
+          const currentFrameData = extract165Landmarks(results); 
+          
+          if (currentFrameData.length === 165) {
+            frameBuffer.current.push(currentFrameData);
+
+            // 2. Once we have 40 frames, run the prediction
+            if (frameBuffer.current.length === 40) {
+              const inputTensor = tf.tensor([frameBuffer.current]); 
+              const prediction = modelRef.current.predict(inputTensor) as tf.Tensor;
+              const predictedIndex = prediction.argMax(-1).dataSync()[0];
+
+              // 3. Map the index to your ASL word (you'll need an array of your vocab)
+              const translatedWord = ASL_VOCAB_ARRAY[predictedIndex];
+
+              // 4. Update your chat UI
+              setTranslationHistory(prev => [...prev, `ASL: ${translatedWord}`]);
+
+              // 5. Slide the window forward & cleanup memory
+              frameBuffer.current.shift(); 
+              inputTensor.dispose();
+              prediction.dispose();
+            }
+          }
+        }
+
+        canvasCtx.restore();
       });
 
       const processFrame = async () => {
